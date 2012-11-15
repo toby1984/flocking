@@ -58,7 +58,7 @@ public class Main extends JFrame
     public static final double ARROW_WIDTH=10;
     public static final double ARROW_LENGTH=ARROW_WIDTH*3;
 
-    protected static final int POPULATION_SIZE = 21000;
+    protected static final int POPULATION_SIZE = 25000;
 
     private World world;
 

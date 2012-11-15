@@ -5,7 +5,7 @@ I took some shortcuts with the nearest-neighbour detection and use an approximat
 
 I've seen vastly differing rendering times on Linux machines (and also choppy screen updates) , this is probably related to the OpenGL / X window integration of the JVM.
  
-Currently there's no UI for tweaking the simulation parameters (todo...) , it your hardware is too slow you need to adjust the POPULATION_SIZE (and/or TARGET_FPS)
+Currently there's no UI for tweaking the simulation parameters (todo...) , if your hardware is too slow you need to adjust the POPULATION_SIZE (and/or TARGET_FPS)
 parameters in Main.java
 
 To run:

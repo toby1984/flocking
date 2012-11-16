@@ -22,6 +22,8 @@ public class LWJGLRenderer extends AbstractRenderer {
     private MyIntBuffer indexBuffer;
     
     private final Object WORLD_LOCK = new Object();
+    
+    // @GuardedBy( WORLD_LOCK )
     private World currentWorld = null;
     
     private volatile boolean destroy = false;
@@ -78,7 +80,18 @@ public class LWJGLRenderer extends AbstractRenderer {
             Display.sync( 60 );
         }
 
+        System.out.println("Deleting VBOs");
+    	if ( vertexBuffer != null ) {
+    		vertexBuffer.deleteBuffer();
+    	}
+    	
+    	if ( indexBuffer != null ) {
+    		indexBuffer.deleteBuffer();
+    	}    	
+    	
+        System.out.println("Destroying OpenGL rendering context.");
         Display.destroy();
+        
         destroyLatch.countDown();
     }
     
@@ -158,6 +171,9 @@ public class LWJGLRenderer extends AbstractRenderer {
     {
         if ( vertexBuffer == null || vertexBuffer.getSize() != elementCount ) 
         {
+        	if ( vertexBuffer != null ) {
+        		vertexBuffer.deleteBuffer();
+        	}
             vertexBuffer = new MyIntBuffer( elementCount );
         }
         vertexBuffer.rewind();
@@ -168,6 +184,9 @@ public class LWJGLRenderer extends AbstractRenderer {
     {
         if ( indexBuffer == null || indexBuffer.getSize() != vertexCount ) 
         {
+        	if ( indexBuffer != null ) {
+        		indexBuffer.deleteBuffer();
+        	}        	
             indexBuffer = new MyIntBuffer( vertexCount );
             IntBuffer buffer = indexBuffer.getBuffer();
             for ( int i = 0 ; i < vertexCount ; i+= 3 ) {
@@ -262,6 +281,10 @@ public class LWJGLRenderer extends AbstractRenderer {
         public IntBuffer getBuffer()
         {
             return buffer;
+        }
+        
+        public void deleteBuffer() {
+        	GL15.glDeleteBuffers( handle );
         }
     }
 

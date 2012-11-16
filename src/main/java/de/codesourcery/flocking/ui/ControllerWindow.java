@@ -4,6 +4,9 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowListener;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 
@@ -44,7 +47,12 @@ public abstract class ControllerWindow extends JFrame
         setSimulationParameters(p);
         
         // setup layout
-        setDefaultCloseOperation( JFrame.EXIT_ON_CLOSE );
+        setDefaultCloseOperation( JFrame.DISPOSE_ON_CLOSE );
+        addWindowListener( new WindowAdapter() {
+        	public void windowClosed(WindowEvent e) {
+        		onDispose();
+        	}
+        } );
         
         final JPanel panel = new JPanel();
         panel.setLayout( new GridBagLayout() );
@@ -80,6 +88,12 @@ public abstract class ControllerWindow extends JFrame
             protected void vsyncChanged(boolean vsyncEnabled)
             {
             }
+
+			@Override
+			protected void onDispose() {
+				// TODO Auto-generated method stub
+				
+			}
         };
     }
     
@@ -93,6 +107,8 @@ public abstract class ControllerWindow extends JFrame
     protected abstract void rendererChanged(boolean useOpenGL);
     
     protected abstract void vsyncChanged(boolean vsyncEnabled);
+    
+    protected abstract void onDispose();
         
     private void layoutPanel(JPanel panel) 
     {

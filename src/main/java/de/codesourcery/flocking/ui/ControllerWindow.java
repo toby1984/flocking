@@ -163,16 +163,16 @@ public abstract class ControllerWindow extends JFrame
                 createConstraints(0,y++) );
         
         // weights
-        panel.add( new InputField<Double>("Cohesion weight:" , new PropertyModel<Double>( ControllerWindow.this , "cohesionWeight" ) , 0 , 2 , false) ,
+        panel.add( new InputField<Double>("Cohesion weight:" , new PropertyModel<Double>( ControllerWindow.this , "cohesionWeight" ) , 0 , 1 , false) ,
                 createConstraints(0,y++) );  
         
-        panel.add( new InputField<Double>("Separation weight:" , new PropertyModel<Double>( ControllerWindow.this , "separationWeight" ) , 0 , 2 , false) ,
+        panel.add( new InputField<Double>("Separation weight:" , new PropertyModel<Double>( ControllerWindow.this , "separationWeight" ) , 0 , 1 , false) ,
                 createConstraints(0,y++) );  
         
-        panel.add( new InputField<Double>("Alignment weight:" , new PropertyModel<Double>( ControllerWindow.this , "alignmentWeight" ) , 0 , 2 , false) ,
+        panel.add( new InputField<Double>("Alignment weight:" , new PropertyModel<Double>( ControllerWindow.this , "alignmentWeight" ) , 0 , 1 , false) ,
                 createConstraints(0,y++) );  
         
-        panel.add( new InputField<Double>("Border force weight:" , new PropertyModel<Double>( ControllerWindow.this , "borderForceWeight" ) , 0 , 2 , false) ,
+        panel.add( new InputField<Double>("Border force weight:" , new PropertyModel<Double>( ControllerWindow.this , "borderForceWeight" ) , 0 , 1 , false) ,
                 createConstraints(0,y++) );      
         
         // radiuses

@@ -8,8 +8,16 @@ public final class World
     private final KDTree<Boid> tree = new KDTree<Boid>();
     private final List<Boid> allBoids = new ArrayList<>();
     
-    public World() {
+    private final SimulationParameters simulationParameters;
+    
+    public World(SimulationParameters simulationParameters) {
+        this.simulationParameters = simulationParameters;
     } 
+    
+    public SimulationParameters getSimulationParameters()
+    {
+        return simulationParameters;
+    }
     
     public void add(Boid boid) 
     {

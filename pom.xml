@@ -60,10 +60,6 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/ma
     </dependency>
   </dependencies>
 
-  <properties>
-    <use.opengl>false</use.opengl>
-  </properties>
-
   <build>
     <plugins>
         <plugin>
@@ -179,9 +175,7 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/ma
        <configuration>
           <executable>java</executable>
           <arguments>
-            <argument>-Duse.opengl=${use.opengl}</argument>
             <argument>-Djava.library.path=${project.basedir}/lib/native</argument>
-            <!-- <argument>-Duse.opengl=true</argument> -->
             <argument>-classpath</argument>
             <classpath/>
             <argument>de.codesourcery.flocking.Main</argument>

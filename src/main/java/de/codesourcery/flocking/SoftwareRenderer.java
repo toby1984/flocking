@@ -6,37 +6,85 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
-import de.codesourcery.flocking.Main.NeighborAggregator;
+import de.codesourcery.flocking.Simulation.NeighborAggregator;
 import de.codesourcery.flocking.World.IBoidVisitor;
 
 public final class SoftwareRenderer extends AbstractRenderer {
 
-    private final Object WORLD_LOCK=new Object();
+    private static final Color BOID_COLOR = new Color(0.5f, 0.5f, 1.0f);
 
-    private World currentWorld;
+    private final JFrame frame = new JFrame();
 
-    private long frameCounter = 0;
+    private final MyPanel panel = new MyPanel();
     
-    private final JPanel panel = new JPanel() {
-        
+    private final Object WORLD_LOCK=new Object();
+    
+    // @GuardedBy( WORLD_LOCK )
+    private World worldToRender;    
+
+    public SoftwareRenderer(boolean debug,boolean debugPerformance) 
+    {
+        super(debug , debugPerformance );
+    }
+
+    @Override
+    public void setup()
+    {
+        frame.setDefaultCloseOperation( JFrame.EXIT_ON_CLOSE );
+
+        panel.setBackground(Color.BLACK);
+        panel.setPreferredSize(new Dimension(800,600));
+
+        frame.getContentPane().setLayout( new GridBagLayout() );
+        GridBagConstraints cnstrs = new GridBagConstraints();
+        cnstrs.weightx=1.0;
+        cnstrs.weighty=1.0;
+        cnstrs.gridheight=GridBagConstraints.REMAINDER;
+        cnstrs.gridwidth=GridBagConstraints.REMAINDER;
+        cnstrs.fill = GridBagConstraints.BOTH;
+
+        frame.getContentPane().add( panel , cnstrs );
+        frame.pack();
+
+        frame.setVisible(true);   
+    }   
+
+    @Override
+    public void displayTitle(String title)
+    {
+        frame.setTitle( title );
+    }
+    
+    protected final class MyPanel extends JPanel {
+
         private double xInc=1.0;
         private double yInc=1.0;
         
+        private World currentWorld;
+
         public void paint(Graphics g) {
 
             super.paint(g);
+            final Graphics2D graphics = (Graphics2D) g;
+
+            synchronized( WORLD_LOCK ) 
+            {
+                this.currentWorld = worldToRender;
+                
+                if ( currentWorld == null ) {
+                    return;
+                }
+            }
+
+            final SimulationParameters params = currentWorld.getSimulationParameters();            
+            final double modelMax = params.modelMax;
 
             xInc = getWidth() / modelMax;
             yInc = getHeight() / modelMax;
-
-            final Graphics2D graphics = (Graphics2D) g;
 
             final IBoidVisitor visitor = new IBoidVisitor() {
 
@@ -45,51 +93,34 @@ public final class SoftwareRenderer extends AbstractRenderer {
                 @Override
                 public void visit(Boid boid)
                 {
-                    drawBoid( boid ,count == 0 ,graphics );
+                    drawBoid( boid ,count == 0 , params , graphics );
                     count++;
                 }
             };
 
-            g.setColor( Color.BLACK );
-            synchronized( WORLD_LOCK ) 
-            {
-                if ( currentWorld == null ) {
-                    return;
-                }
-
-                if ( debugPerformance ) 
-                {
-                    long time = -System.currentTimeMillis();
-                    currentWorld.visitAllBoids( visitor );                    
-                    time += System.currentTimeMillis();
-                    if ( ( frameCounter++ % 60 ) == 0 ) {
-                        System.out.println("\n-------------------\nRendering: "+time+" ms\n-------------------");                        
-                    }
-                } else {
-                    currentWorld.visitAllBoids( visitor );
-                }
-            }
+            g.setColor( BOID_COLOR );
+            currentWorld.visitAllBoids( visitor );                    
         }
-        
-        private void drawBoid(Boid boid, boolean firstBoid , Graphics2D g)
+
+        private void drawBoid(Boid boid, boolean firstBoid , final SimulationParameters params , Graphics2D g)
         {
-            drawBoid(boid,firstBoid,Color.BLUE,true , g);
+            drawBoid(boid,firstBoid,Color.BLUE,true , params , g);
         }
 
-        private void drawBoid(final Boid boid, boolean isDebugBoid , Color color , boolean fill , final Graphics2D g)
+        private void drawBoid(final Boid boid, boolean isDebugBoid , Color color , boolean fill , final SimulationParameters params, final Graphics2D g)
         {
             if ( debug && isDebugBoid ) 
             {
                 // draw neighbor radius
                 g.setColor(Color.GREEN );
-                drawCircle( boid.getNeighbourCenter() , neighborRadius , g );
+                drawCircle( boid.getNeighbourCenter() , params.neighbourRadius , g );
 
                 // draw separation radius
                 g.setColor(Color.RED);
-                drawCircle( boid.getNeighbourCenter() , separationRadius , g );  
+                drawCircle( boid.getNeighbourCenter() , params.separationRadius , g );  
 
                 // mark neighbors
-                final NeighborAggregator visitor = new NeighborAggregator(boid) {
+                final NeighborAggregator visitor = new NeighborAggregator(boid,params.separationRadius) {
 
                     @Override
                     public void visit(Boid other)
@@ -99,17 +130,17 @@ public final class SoftwareRenderer extends AbstractRenderer {
 
                             final double distance = other.getLocation().minus( boid.getNeighbourCenter() ).length();
 
-                            if ( distance > neighborRadius ) {
+                            if ( distance > params.neighbourRadius ) {
                                 return;
                             }                            
-                            drawBoid( other , false , Color.PINK , true, g );
+                            drawBoid( other , false , Color.PINK , true, params , g );
                         }
                     }
                 };
-                boid.visitNeighbors( currentWorld , neighborRadius , visitor );
+                boid.visitNeighbors( currentWorld , params.neighbourRadius , visitor );
 
                 // cohesion
-                Vec2dMutable cohesionVec = Main.steerTo( boid , visitor.getAverageLocation() );
+                Vec2dMutable cohesionVec = Simulation.steerTo( params , boid , visitor.getAverageLocation() );
 
                 g.setColor(Color.CYAN);
                 drawVec( boid.getLocation() , boid.getLocation().plus( cohesionVec ) , g );
@@ -234,100 +265,20 @@ public final class SoftwareRenderer extends AbstractRenderer {
 
             g.fillOval( round(x1) , round(y1) , round(x2-x1) , round(y2-y1) ); 
         }        
-    };
-
-    public static final double ARROW_WIDTH=10;
-    public static final double ARROW_LENGTH=ARROW_WIDTH*3;    
-    
-    // tick provider
-    private final AtomicBoolean mayRender = new AtomicBoolean(true);
-    private final ScheduledThreadPoolExecutor vsyncThread;    
-
-    public SoftwareRenderer(double modelMax,boolean debug,
-            boolean debugPerformance,
-            double neighborRadius, double separationRadius) 
-    {
-        super(modelMax , debug , debugPerformance , neighborRadius , separationRadius );
-
-        // VSync stuff
-        final Runnable r = new Runnable() 
-        {
-            private int dropCount;
-            private int frameCount;
-            private int previouslyDroppedFrame=-1;
-            
-            private final long start = System.currentTimeMillis();
-            
-            @Override
-            public void run()
-            {
-                frameCount++;
-                
-                if ( (frameCount % 200) == 0 ) {
-                    long duration = System.currentTimeMillis() - start;
-                    double fps = (frameCount - dropCount ) / (duration/1000.0);
-                    System.out.println("\n-------------------\nFPS: "+fps+"\n-------------------");
-                }
-                
-                if ( ! mayRender.compareAndSet( false , true ) ) 
-                {
-                    dropCount++;                    
-                    if ( previouslyDroppedFrame != frameCount-1 ) 
-                    {
-                        System.out.println("*** Frames dropped: "+dropCount);                   
-                    }
-                    previouslyDroppedFrame=frameCount;
-                }
-            }
-        };
-        
-        vsyncThread = new ScheduledThreadPoolExecutor(1); 
-        vsyncThread.scheduleAtFixedRate( r , 0 , 1000 / TARGET_FPS  , TimeUnit.MILLISECONDS );        
     }
 
-    private void repaint(World world) 
+    @Override
+    public void render(World world) throws Exception
     {
         synchronized (WORLD_LOCK) {
-            this.currentWorld = world;
+            worldToRender = world;
         }
         panel.repaint();
     }
 
     @Override
-    public void start(IWorldCallback callback)
+    public void destroy()
     {
-        JFrame frame = new JFrame();
-        
-        frame.setDefaultCloseOperation( JFrame.EXIT_ON_CLOSE );
-
-        panel.setBackground(Color.WHITE);
-        panel.setPreferredSize(new Dimension(800,600));
-
-        frame.getContentPane().setLayout( new GridBagLayout() );
-        GridBagConstraints cnstrs = new GridBagConstraints();
-        cnstrs.weightx=1.0;
-        cnstrs.weighty=1.0;
-        cnstrs.gridheight=GridBagConstraints.REMAINDER;
-        cnstrs.gridwidth=GridBagConstraints.REMAINDER;
-        cnstrs.fill = GridBagConstraints.BOTH;
-        
-        frame.getContentPane().add( panel , cnstrs );
-        frame.pack();
-
-        frame.setVisible(true);   
-        
-        while(true) 
-        {
-            if ( mayRender.compareAndSet(true, false ) ) 
-            {
-                World world;
-                try {
-                    world = callback.tick();
-                    repaint( world );
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }    
+        frame.dispose();
+    }
 }

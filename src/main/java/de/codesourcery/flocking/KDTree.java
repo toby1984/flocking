@@ -730,7 +730,7 @@ public class KDTree<T>
             //            renderTree((Graphics2D) g);
         }
 
-        private void renderTree(final Graphics2D g)
+        public void renderTree(final Graphics2D g)
         {
             final double xCenter = MODEL_WIDTH / 2.0;
 

@@ -1,6 +1,6 @@
 package de.codesourcery.flocking;
 
-import de.codesourcery.flocking.Main.NeighborAggregator;
+import de.codesourcery.flocking.Simulation.NeighborAggregator;
 
 public final class Boid
 {

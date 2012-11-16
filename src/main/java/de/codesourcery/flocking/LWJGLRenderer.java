@@ -1,227 +1,186 @@
 package de.codesourcery.flocking;
 
 import java.nio.IntBuffer;
+import java.util.concurrent.CountDownLatch;
 
 import org.lwjgl.BufferUtils;
 import org.lwjgl.LWJGLException;
-import org.lwjgl.Sys;
 import org.lwjgl.opengl.Display;
 import org.lwjgl.opengl.DisplayMode;
 import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL15;
-import org.lwjgl.opengl.GLContext;
 
 import de.codesourcery.flocking.World.IBoidVisitor;
 
 public class LWJGLRenderer extends AbstractRenderer {
 
-    /** time at last frame */
-    long lastFrame;
-
-    /** frames per second */
-    int fps;
-    /** last fps time */
-    long lastFPS;
-
     private double xInc;
     private double yInc;
-
-    private World world;
 
     // VBOs
     private MyIntBuffer vertexBuffer;
     private MyIntBuffer indexBuffer;
+    
+    private final Object WORLD_LOCK = new Object();
+    private World currentWorld = null;
+    
+    private volatile boolean destroy = false;
+    
+    private final CountDownLatch destroyLatch = new CountDownLatch(1);
 
-    public LWJGLRenderer(double modelMax,boolean debug,
-            boolean debugPerformance,
-            double neighborRadius, double separationRadius) 
+    public LWJGLRenderer(boolean debug,boolean debugPerformance) 
     {
-        super(modelMax , debug , debugPerformance , neighborRadius , separationRadius );
+        super(debug , debugPerformance );
     }
 
-    public void start(IWorldCallback callback) 
+    public void setup() throws LWJGLException
     {
-        try {
-            Display.setDisplayMode(new DisplayMode(800, 600));
-            Display.setResizable( true );
-            Display.create();
-        } 
-        catch (LWJGLException e) {
-            e.printStackTrace();
-            System.exit(0);
-        }
-
-        initGL(); // init OpenGL
-        getDelta(); // call once before loop to initialise lastFrame
-        lastFPS = getTime(); // call before loop to initialise fps timer
-
-        while (!Display.isCloseRequested()) 
-        {
-            try {
-                world = callback.tick();
-            } catch (Exception e) {
-                e.printStackTrace();
+        final Thread thread = new Thread() {
+            @Override
+            public void run()
+            {
+                try {
+                    internalSetup();
+                } 
+                catch (Exception e) {
+                    e.printStackTrace();
+                    System.exit(1);
+                }
             }
+        };
+        
+        thread.setDaemon( true );
+        thread.start();        
+    }
+    
+    private void internalSetup() throws LWJGLException 
+    {
+        Display.setDisplayMode(new DisplayMode(800, 600));
+        Display.setResizable( true );
+        Display.create();
 
-            updateFPS(); // update FPS Counter
-
+        initGL(); 
+        
+        while (!Display.isCloseRequested() && ! destroy ) 
+        {
             if ( Display.wasResized() ) {
-                System.out.println("--- Display resized ---");
                 initGL();
             }
 
-            renderGL();
+            synchronized ( WORLD_LOCK ) 
+            {
+                if ( currentWorld != null ) {
+                    renderWorld( currentWorld );
+                }
+            }
 
             Display.update();
-
-            Display.sync(TARGET_FPS); 
+            Display.sync( 60 );
         }
 
         Display.destroy();
+        destroyLatch.countDown();
     }
-
-    /**
-     * Calculate how many milliseconds have passed
-     * since last frame.
-     *
-     * @return milliseconds passed since last frame
-     */
-    public int getDelta() {
-        long time = getTime();
-        int delta = (int) (time - lastFrame);
-        lastFrame = time;
-
-        return delta;
-    }
-
-    /**
-     * Get the accurate system time
-     *
-     * @return The system time in milliseconds
-     */
-    public long getTime() {
-        return (Sys.getTime() * 1000) / Sys.getTimerResolution();
-    }
-
-    /**
-     * Calculate the FPS and set it in the title bar
-     */
-    public void updateFPS() {
-        if (getTime() - lastFPS > 1000) {
-            Display.setTitle("FPS: " + fps);
-            fps = 0;
-            lastFPS += 1000;
-        }
-        fps++;
-    }
-
-    public void initGL() 
+    
+    @Override
+    public void displayTitle(String title)
     {
-        GL11.glDisable(GL11.GL_DEPTH_TEST);    
-        
+        Display.setTitle( title );
+    }
+
+    private void initGL() 
+    {
         GL11.glMatrixMode(GL11.GL_PROJECTION);
         GL11.glLoadIdentity();
         GL11.glViewport( 0 , 0 , Display.getWidth() , Display.getHeight() );
         GL11.glOrtho(0, Display.getWidth(), 0, Display.getHeight() , 1, -1);
-        GL11.glMatrixMode(GL11.GL_MODELVIEW);
+//        GL11.glMatrixMode(GL11.GL_MODELVIEW);
     }
 
-    public void renderGL() 
+    private void renderWorld(World world) 
     {
+        final double modelMax = world.getSimulationParameters().modelMax;
         xInc = Display.getWidth() / modelMax;
         yInc = Display.getHeight() / modelMax;
 
+        GL11.glEnable(GL11.GL_DEPTH_TEST);
+        GL11.glDepthMask(true);
+        
         GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT );
 
+        GL11.glDisable(GL11.GL_DEPTH_TEST);
+        GL11.glDepthMask(false);
+        
         GL11.glColor3f(0.5f, 0.5f, 1.0f);
 
-        GL11.glPushMatrix();
-        
         GL11.glEnableClientState(GL11.GL_VERTEX_ARRAY);  
         
-        final int len = world.getPopulation();
-        
-        final int arrayLen = world.getPopulation() * 3 * 2 ; // one triangle = 3 vertices * 2 int's per vertex
+        final int triangleCount = world.getPopulation();
 
-        // setup vertex array
-
-        final int[] array = new int[ arrayLen ];
+        // setup vertex data       
+        final int vertexArrayLen = triangleCount * 3 * 2 ; // one triangle = 3 vertices * 2 int's per vertex
+        final MyIntBuffer vertexBuffer = getVertexBuffer( vertexArrayLen ); 
         
+        final IntBuffer vertexIntBuffer = vertexBuffer.getBuffer();
         final IBoidVisitor visitor = new IBoidVisitor() {
 
-            private int offset = 0;
             @Override
             public void visit(Boid boid)
             {
-                offset += drawBoid( boid , array , offset );
+                drawBoid( boid , vertexIntBuffer );
             }
         };
         world.visitAllBoids( visitor );
 
-        final MyIntBuffer vertexArray = getVertexBuffer( arrayLen );        
-        vertexArray.getBuffer().put( array );
-        vertexArray.rewind();      
+        vertexBuffer.rewind();      
       
-        // setup index array
-        final int[] indexArray = new int[ len * 3 ];
-        for ( int i = 0 ; i < len ; i+= 3 ) {
-            indexArray[i] = i;
-            indexArray[i+1] = i+1;
-            indexArray[i+2] = i+2;
-        }
-        
-        MyIntBuffer indexBuffer = getIndexBuffer( len*3 );
-        indexBuffer.getBuffer().put( indexArray );
-        indexBuffer.rewind();
-        
-        GL15.glBindBuffer( GL15.GL_ARRAY_BUFFER , vertexArray.getHandle() );
-        GL15.glBufferData( GL15.GL_ARRAY_BUFFER , vertexArray.getBuffer() , GL15.GL_STREAM_DRAW);
+        GL15.glBindBuffer( GL15.GL_ARRAY_BUFFER , vertexBuffer.getHandle() );
+        GL15.glBufferData( GL15.GL_ARRAY_BUFFER , vertexBuffer.getBuffer() , GL15.GL_DYNAMIC_DRAW);
         GL11.glVertexPointer(2, GL11.GL_INT, 0, 0);        
-        
-        GL15.glBindBuffer( GL15.GL_ELEMENT_ARRAY_BUFFER , indexBuffer.getHandle() );
-        GL15.glBufferData( GL15.GL_ELEMENT_ARRAY_BUFFER , indexBuffer.getBuffer() , GL15.GL_STREAM_DRAW );
-        
-        GL12.glDrawRangeElements(GL11.GL_TRIANGLES, 
-                0 ,  // start
-                1 , // end ; start..end is the number of elements that make up one vertex (2D => 2 , 3D => 3)
-                world.getPopulation()*3 , // number of vertices to render
-                GL11.GL_UNSIGNED_INT , 0 );
 
+        // setup index data
+        MyIntBuffer indexBuffer = getIndexBuffer( triangleCount*3 );      
+        GL15.glBindBuffer( GL15.GL_ELEMENT_ARRAY_BUFFER , indexBuffer.getHandle() );
+        GL15.glBufferData( GL15.GL_ELEMENT_ARRAY_BUFFER , indexBuffer.getBuffer() , GL15.GL_STATIC_DRAW );
+        
+        GL11.glDrawElements(GL11.GL_TRIANGLES, triangleCount*3 , GL11.GL_UNSIGNED_INT, 0);
+        
         GL15.glBindBuffer( GL15.GL_ARRAY_BUFFER , 0 );
         GL15.glBindBuffer( GL15.GL_ELEMENT_ARRAY_BUFFER , 0 );
         
         GL11.glDisableClientState(GL11.GL_VERTEX_ARRAY);
         
-        GL11.glPopMatrix();
+        GL11.glEnable(GL11.GL_DEPTH_TEST);
+        GL11.glDepthMask(true);        
     }
 
     private MyIntBuffer getVertexBuffer(int elementCount) 
     {
-        if ( vertexBuffer == null ) {
+        if ( vertexBuffer == null || vertexBuffer.getSize() != elementCount ) 
+        {
             vertexBuffer = new MyIntBuffer( elementCount );
         }
         vertexBuffer.rewind();
         return vertexBuffer;
     }
     
-    private MyIntBuffer getIndexBuffer(int elementCount) 
+    private MyIntBuffer getIndexBuffer(int vertexCount) 
     {
-        if ( indexBuffer == null ) {
-            indexBuffer = new MyIntBuffer( elementCount );
-        }
+        if ( indexBuffer == null || indexBuffer.getSize() != vertexCount ) 
+        {
+            indexBuffer = new MyIntBuffer( vertexCount );
+            IntBuffer buffer = indexBuffer.getBuffer();
+            for ( int i = 0 ; i < vertexCount ; i+= 3 ) {
+                buffer.put( i );
+                buffer.put( i+1 );
+                buffer.put( i+2 );
+            }
+        } 
         indexBuffer.rewind();
         return indexBuffer;
     }
 
-    private int createBufferId() 
-    {
-        final IntBuffer buffer = BufferUtils.createIntBuffer(1);
-        GL15.glGenBuffers( buffer );
-        return buffer.get(0);
-    }    
-
-    protected int drawBoid(Boid b,int[] array,int offset)
+    private void drawBoid(Boid b,IntBuffer buffer)
     {
         // create vector perpendicular to heading
         double headingNormalizedX = b.getVelocity().x;
@@ -260,30 +219,35 @@ public class LWJGLRenderer extends AbstractRenderer {
         int x3= round( (centerX + rotatedX * ARROW_WIDTH*-1 )*xInc);
         int y3= round( (centerY + rotatedY * ARROW_WIDTH*-1 )*yInc);
 
-        array[offset++] = x1;
-        array[offset++] = y1;
+        buffer.put(x1);
+        buffer.put(y1);
         
-        array[offset++] = x2;
-        array[offset++] = y2;
+        buffer.put(x2);
+        buffer.put(y2);
         
-        array[offset++] = x3;
-        array[offset++] = y3;
-
-        return 6;
+        buffer.put(x3);
+        buffer.put(y3);
     }
     
     protected static final class MyIntBuffer {
         
+        private final int size;
         private final IntBuffer buffer;
         private final int handle;
         
         public MyIntBuffer(int elementCount) 
         {
+            this.size = elementCount;
             buffer = BufferUtils.createIntBuffer( elementCount );
             
             final IntBuffer buffer = BufferUtils.createIntBuffer(1);
             GL15.glGenBuffers( buffer );
             handle = buffer.get(0);            
+        }
+        
+        public int getSize()
+        {
+            return size;
         }
         
         public int getHandle()
@@ -298,6 +262,25 @@ public class LWJGLRenderer extends AbstractRenderer {
         public IntBuffer getBuffer()
         {
             return buffer;
+        }
+    }
+
+    @Override
+    public void render(World world) throws Exception
+    {
+        synchronized(WORLD_LOCK) {
+            currentWorld = world;
+        }
+    }
+
+    @Override
+    public void destroy()
+    {
+        destroy = true;
+        try {
+            destroyLatch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 }

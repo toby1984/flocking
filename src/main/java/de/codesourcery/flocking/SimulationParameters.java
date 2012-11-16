@@ -2,7 +2,7 @@ package de.codesourcery.flocking;
 
 public final class SimulationParameters
 {
-    private static final SimulationParameters DEFAULTS = new SimulationParameters(20000,5000,5,10,0.33,0.4,0.33,1,20,100, 5000 * 0.1 );
+    private static final SimulationParameters DEFAULTS = new SimulationParameters(10000,5000,5,10,0.33,0.4,0.33,1,20,100, 5000 * 0.1 );
     
     // number of boids to simulate
     public final int populationSize;    

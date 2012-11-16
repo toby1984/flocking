@@ -153,13 +153,13 @@ public abstract class ControllerWindow extends JFrame
         panel.add( new InputField<Integer>("Population:" , new PropertyModel<Integer>( ControllerWindow.this , "populationSize" ) , 10 , 50000 , true) ,
                 createConstraints(0,y++) );
         
-        panel.add( new InputField<Double>("Model max:" , new PropertyModel<Double>( ControllerWindow.this , "modelMax" ) , 1000 , 10000 , true) ,
+        panel.add( new InputField<Double>("Scaling:" , new PropertyModel<Double>( ControllerWindow.this , "modelMax" ) , 100 , 10000 , true) ,
                 createConstraints(0,y++) );       
         
-        panel.add( new InputField<Double>("Max. steering force:" , new PropertyModel<Double>( ControllerWindow.this , "maxSteeringForce" ) , 0 , 20 , false) ,
+        panel.add( new InputField<Double>("Max. steering force:" , new PropertyModel<Double>( ControllerWindow.this , "maxSteeringForce" ) , 0 , 10 , false) ,
                 createConstraints(0,y++) );   
         
-        panel.add( new InputField<Double>("Max. speed:" , new PropertyModel<Double>( ControllerWindow.this , "maxSpeed" ) , 1 , 50 , false) ,
+        panel.add( new InputField<Double>("Max. speed:" , new PropertyModel<Double>( ControllerWindow.this , "maxSpeed" ) , 1 , 20 , false) ,
                 createConstraints(0,y++) );
         
         // weights
@@ -176,13 +176,13 @@ public abstract class ControllerWindow extends JFrame
                 createConstraints(0,y++) );      
         
         // radiuses
-        panel.add( new InputField<Double>("Neighbor radius:" , new PropertyModel<Double>( ControllerWindow.this , "neighbourRadius" ) , 0 , 100 , false) ,
+        panel.add( new InputField<Double>("Neighbor radius:" , new PropertyModel<Double>( ControllerWindow.this , "neighbourRadius" ) , 10 , 100 , false) ,
                 createConstraints(0,y++) );  
         
         panel.add( new InputField<Double>("Separation radius:" , new PropertyModel<Double>( ControllerWindow.this , "separationRadius" ) , 0 , 100 , false) ,
                 createConstraints(0,y++) );          
         
-        panel.add( new InputField<Double>("Border radius:" , new PropertyModel<Double>( ControllerWindow.this , "borderRadius" ) , 0 , 100 , false) ,
+        panel.add( new InputField<Double>("Border radius:" , new PropertyModel<Double>( ControllerWindow.this , "borderRadius" ) , 0 , 500 , false) ,
                 createConstraints(0,y++) ); 
     }
 

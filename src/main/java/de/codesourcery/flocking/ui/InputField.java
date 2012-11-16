@@ -22,7 +22,7 @@ import org.apache.commons.lang.StringUtils;
 
 public class InputField<T extends Number> extends JPanel
 {
-    private static final int SLIDER_RESOLUTION = 300;
+    private static final int SLIDER_RESOLUTION = 400;
     
     private final JTextField textField;
     private final JSlider slider;

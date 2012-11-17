@@ -17,6 +17,7 @@ package de.codesourcery.flocking;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -36,6 +37,10 @@ public final class Simulation implements ISimulation
     private static final int THREAD_COUNT = Runtime.getRuntime().availableProcessors();
     private static final int WORK_UNITS_PER_THREAD = 32;
 
+    private static final boolean DEBUG_TREE_DEPTH = true;
+
+    private long generationCounter=0;
+    
     private final Object WORLD_LOCK = new Object();
 
     // @GuardedBy( WORLD_LOCK )
@@ -45,7 +50,7 @@ public final class Simulation implements ISimulation
     private SimulationParameters simulationParameters;
 
     private final ExecutorService threadPool;
-
+    
     public Simulation(World initialWorld) 
     {
         System.out.println("Using "+THREAD_COUNT+" CPUs.");
@@ -150,10 +155,17 @@ public final class Simulation implements ISimulation
             // wait for worker threads to finish
             try {
                 workerThreads.await();
-            } catch (InterruptedException e) {
+            } 
+            catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
 
+            if ( DEBUG_TREE_DEPTH ) {
+        		if ( (generationCounter++ % 30 ) == 0 ) 
+        		{
+        			newWorld.printTreeDepthDistribution();
+        		}
+            }
             currentWorld = newWorld;
             return newWorld;
         }

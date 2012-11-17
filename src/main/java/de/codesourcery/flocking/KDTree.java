@@ -25,7 +25,9 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.MouseAdapter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -823,6 +825,55 @@ public final class KDTree<T>
     }
 
     // ============ DEBUGGING code ====================
+    
+    public Map<Integer,Integer> getLeafDepthDistribution() 
+    {
+    	final Map<Integer,Integer> result = new HashMap<>();
+    	if ( root != null ) {
+    		root.visitPreOrder( 0 , new KDTreeVisitor<T>() {
+
+				@Override
+				public void visit(int depth, TreeNode<T> node) 
+				{
+					if ( node.isLeaf() ) 
+					{
+						final int valueCount = ((LeafNode<T>) node).getValueCount();
+						Integer iDepth = Integer.valueOf(depth);
+						Integer current = result.get( iDepth );
+						if ( current == null ) {
+							result.put(iDepth , Integer.valueOf(valueCount) );
+						} else {
+							result.put(iDepth , Integer.valueOf( current.intValue() + valueCount ) );
+						}
+					}
+				}
+			});
+    	}
+    	return result;
+    }
+    
+	public void printTreeDepthDistribution() 
+	{
+		Map<Integer, Integer> distribution = getLeafDepthDistribution();
+		int min = Integer.MAX_VALUE;
+		int max = Integer.MIN_VALUE;
+		int values = 0;
+		int depthSum = 0;
+		for ( Map.Entry<Integer,Integer> entry : distribution.entrySet() ) 
+		{
+			final int depth = entry.getKey();
+			if ( depth < min ) {
+				min = depth;
+			}
+			if ( depth > max ) {
+				max = depth;
+			}
+			depthSum += depth*entry.getValue();
+			values+= entry.getValue();
+		}
+		float avgDepth = depthSum / (float) values;
+		System.out.println("Min. depth: "+min+" / max. depth: "+max+" / avg. depth: "+avgDepth+" / values: "+values);
+	}     
     
     private static final double MODEL_WIDTH = 400;
     private static final double MODEL_HEIGHT = 400;

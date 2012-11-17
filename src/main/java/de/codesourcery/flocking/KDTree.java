@@ -1,3 +1,18 @@
+/**
+ * Copyright 2012 Tobias Gierke <tobias.gierke@code-sourcery.de>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package de.codesourcery.flocking;
 
 import java.awt.Color;
@@ -20,52 +35,151 @@ import javax.swing.JPanel;
 
 import org.apache.commons.lang.StringUtils;
 
-
-public class KDTree<T>
+/**
+ * kd-tree implementation for storing 2d points.
+ * 
+ * <p>This kd-tree is specifically tweaked to provide fast concurrent inserts
+ * and fast (but only approximate) k-nearest neighbor queries.</p>
+ * 
+ * <p>This class is <b>not</b> thread-safe except for the {@link #add(double, double, Object)} method
+ * that me be called concurrently. This class uses per-tree-node locking (with CAS instructions) but
+ * this obviously creates quite a lot of contention near the root node(s).</p>
+ * <p>The k-nearest neighbor search only works on a best-effort basis (it stops visiting tree nodes
+ * as soon as the requested amount of neighbours has been located).</p>
+ *
+ * @author tobias.gierke@code-sourcery.de
+ */
+public final class KDTree<T>
 {
     private TreeNode<T> root;
 
     private static final int LEFT = 0;
     private static final int RIGHT = 1;    
-
-    public static abstract class TreeNode<T> 
-    {
-        private final AtomicBoolean lock = new AtomicBoolean(false);
-
-        public abstract void add(double x,double y,int depth , LeafNode<T> value);
-
-        public abstract boolean isLeaf();
-
-        public abstract void visitPreOrder(int x , int y , KDXYTreeVisitor<T> visitor);
-
-        public abstract void visitPreOrder(int depth , KDTreeVisitor<T> visitor);
-
-        public abstract void visitPreOrder(KDLeafVisitor<T> visitor);        
-
-        public abstract void findApproxNearestNeighbors(int depth , NearestNeighborGatherer<T> gatherer);  
-
-        protected void lock() 
-        {
-            while( ! lock.compareAndSet( false , true ) );
-        }
-
-        protected void unlock() {
-            lock.set( false );
-        }
-    }
-
+    
+    /**
+     * Generic tree visitor (visits all nodes).
+     *
+     * @author tobias.gierke@code-sourcery.de
+     */
     public interface KDTreeVisitor<T> {
         public void visit(int depth  ,TreeNode<T> node);
     }
+    
+    public interface ValueVisitor<T> {
+    	public void visit(T value);
+    }
 
+    /**
+     * X/Y tree visitor (visits all nodes).
+     *
+     * @author tobias.gierke@code-sourcery.de
+     */
     public interface KDXYTreeVisitor<T> {
         public void visit(int x,int y,TreeNode<T> node);
     }    
 
+    /**
+     * Leaf node visitor.
+     *
+     * @author tobias.gierke@code-sourcery.de
+     */
     public interface KDLeafVisitor<T> {
         public void visit(LeafNode<T> node);
-    }    
+    }     
 
+    /**
+     * kd-tree nodes base class.
+     *
+     * @author tobias.gierke@code-sourcery.de
+     */
+    public static abstract class TreeNode<T> 
+    {
+    	// used to lock this node for exclusive access
+        private final AtomicBoolean lock = new AtomicBoolean(false);
+
+        /**
+         * Inserts a new leaf-node into this subtree.
+         * 
+         * <p>This method will traverse the tree while splitting nodes as necessary until
+         * a suitable insert location is found.</p>
+         * 
+         * @param x x-coordinate
+         * @param y y-coordinate
+         * @param depth current tree depth (used to determine split-axis , even depths are x-axis splits, odd depths
+         * are y-axis splits)
+         * @param value the new leaf node to add
+         */
+        public abstract void add(double x,double y,int depth , LeafNode<T> value);
+
+        /**
+         * Check whether this node is actually a leaf-node.
+         * 
+         * @return
+         */
+        public abstract boolean isLeaf();
+
+        /**
+         * (debug) Visit subtree with a {@link KDXYTreeVisitor}.
+         * 
+         * <p>This method is only used for debugging (rendering a graphical representation
+         * of the tree to visualize balancing issues etc.)
+         * </p>
+         * @param x tree node horizontal position  
+         * @param y tree node vertical position (root = 0)
+         * @param visitor
+         */
+        public abstract void visitPreOrder(int x , int y , KDXYTreeVisitor<T> visitor);
+
+        /**
+         * Visit subtree.
+         * 
+         * @param depth the current node's depth in the tree.
+         * @param visitor Visitor to use
+         */
+        public abstract void visitPreOrder(int depth , KDTreeVisitor<T> visitor);
+
+        /**
+         * Visit subtree.
+         * 
+         * @param visitor
+         */
+        public abstract void visitPreOrder(KDLeafVisitor<T> visitor);        
+
+        /**
+         * Visit k-nearest neigbors.
+         * 
+         * @param depth
+         * @param gatherer
+         */
+        public abstract void findApproxNearestNeighbors(int depth , NearestNeighborGatherer<T> gatherer);  
+
+        /**
+         * Locks this tree node for exclusive access.
+         * 
+         * <p>Note that this method uses spin-locking so if another thread
+         * currently holds the lock for an extended period of time, this method will create quite some CPU-load</p>.
+         */
+        protected final void lock() 
+        {
+            while( ! lock.compareAndSet( false , true ) );
+        }
+
+        /**
+         * Unlocks this node.
+         * 
+         * <p>Make sure to not call this method more than once per {@link #lock()} invocation, otherwise
+         * you may remove somebody elses lock...</p>
+         */
+        protected final void unlock() {
+            lock.set( false );
+        }
+    }
+
+    /**
+     * Non-leaf (inner) tree node.
+     *
+     * @author tobias.gierke@code-sourcery.de
+     */
     public static final class NonLeafNode<T> extends TreeNode<T>
     {
         private final double splitValue;
@@ -294,7 +408,7 @@ public class KDTree<T>
                     visitedTree = LEFT;
                     if ( left != null ) {
                         if ( left.isLeaf() ) {
-                            gatherer.addCandidate( (LeafNode<T>) left);
+                            gatherer.maybeAddCandidate( (LeafNode<T>) left);
                         } else { 
                             left.findApproxNearestNeighbors( depth +1 , gatherer );
                         }
@@ -307,7 +421,7 @@ public class KDTree<T>
                     if ( right != null ) 
                     {
                         if ( right.isLeaf() ) {
-                            gatherer.addCandidate( (LeafNode<T>) right);
+                            gatherer.maybeAddCandidate( (LeafNode<T>) right);
                         } else {
                             right.findApproxNearestNeighbors( depth +1 , gatherer );
                         }
@@ -323,7 +437,7 @@ public class KDTree<T>
                     if ( left != null ) 
                     {
                         if ( left.isLeaf() ) {
-                            gatherer.addCandidate( (LeafNode<T>) left);
+                            gatherer.maybeAddCandidate( (LeafNode<T>) left);
                         } else { 
                             left.findApproxNearestNeighbors( depth + 1 , gatherer );
                         }
@@ -335,7 +449,7 @@ public class KDTree<T>
                     visitedTree = RIGHT;  
                     if ( right != null ) {
                         if ( right.isLeaf() ) {
-                            gatherer.addCandidate( (LeafNode<T>) right);
+                            gatherer.maybeAddCandidate( (LeafNode<T>) right);
                         } else {
                             right.findApproxNearestNeighbors( depth + 1 , gatherer );
                         }
@@ -359,7 +473,7 @@ public class KDTree<T>
     
                 if ( right != null && isWithinRadius && visitedTree == LEFT ) {
                     if ( right.isLeaf() ) {
-                        gatherer.addCandidate( (LeafNode<T>) right);
+                        gatherer.maybeAddCandidate( (LeafNode<T>) right);
                     } else {
                         right.findApproxNearestNeighbors( depth + 1 , gatherer );
                     }
@@ -367,7 +481,7 @@ public class KDTree<T>
                 else if ( left != null && isWithinRadius && visitedTree == RIGHT  ) 
                 {
                     if ( left.isLeaf() ) {
-                        gatherer.addCandidate( (LeafNode<T>) left);
+                        gatherer.maybeAddCandidate( (LeafNode<T>) left);
                     } else {
                         left.findApproxNearestNeighbors( depth + 1 , gatherer );
                     }
@@ -376,6 +490,11 @@ public class KDTree<T>
         }
     }    
 
+    /**
+     * Used to gather the k-nearest neighbors for a given (x,y) location and radius.
+     *
+     * @author tobias.gierke@code-sourcery.de
+     */
     public static final class NearestNeighborGatherer<T> {
 
         public final double x;
@@ -386,6 +505,14 @@ public class KDTree<T>
 
         private final PriorityQueue<NodeWithDistance<T>> queue;
 
+        /**
+         * Create instance.
+         *  
+         * @param x 
+         * @param y
+         * @param radius
+         * @param maxNeighborCount maximum number of neighbors to return. 
+         */
         public NearestNeighborGatherer(double x, double y, double radius, int maxNeighborCount)
         {
             this.x = x;
@@ -396,24 +523,25 @@ public class KDTree<T>
             queue = new PriorityQueue<>( maxNeighborCount );
         }
 
-        public List<T> getResults() 
+        public void visitResults(ValueVisitor<T> visitor) 
         {
-            final List<T> result = new ArrayList<>();
-
             NodeWithDistance<T> current = null;
             int toAdd = maxNeighborCount;
             while ( toAdd > 0 && ( current = queue.poll() ) != null ) 
             {
-            	toAdd -= current.node.addValues( result , toAdd );
+            	toAdd -= current.node.visitValues( visitor );
             }
-            return result;
         }
         
+        /**
+         * Check whether the required number of neighbors has been found.
+         * @return
+         */
         public boolean isFull() {
             return queue.size() >= maxNeighborCount;
         }
 
-        public void addCandidate(LeafNode<T> node) 
+        public void maybeAddCandidate(LeafNode<T> node) 
         {
             double dx = x - node.x;
             double dy = y - node.y;
@@ -498,6 +626,8 @@ public class KDTree<T>
         {
             visitor.visit( depth , this );
         }
+        
+        public abstract int visitValues(ValueVisitor<T> visitor);
 
         @Override
         public final void findApproxNearestNeighbors(int depth, NearestNeighborGatherer<T> gatherer)
@@ -506,6 +636,11 @@ public class KDTree<T>
         }
     }
 
+    /**
+     * Leaf node that holds a single value for a specific (x,y) location.
+     *
+     * @author tobias.gierke@code-sourcery.de
+     */
     public static final class SingleValueLeafNode<T> extends LeafNode<T>
     {
         public final T value;
@@ -544,11 +679,23 @@ public class KDTree<T>
         {
             return "LEAF[ "+x+" , "+y +" ] = "+value;
         }
+
+		@Override
+		public int visitValues(ValueVisitor<T> visitor) 
+		{
+			visitor.visit( value );
+			return 1;
+		}
     }    
 
+    /**
+     * Leaf node that holds one or more values for a specific (x,y) location.
+     *
+     * @author tobias.gierke@code-sourcery.de
+     */
     public static final class MultiValuedLeafNode<T> extends LeafNode<T>
     {
-        public final List<T> values = new ArrayList<>();
+        public final ArrayList<T> values = new ArrayList<>();
 
         public MultiValuedLeafNode(SingleValueLeafNode<T> node) {
             super( node.x ,node.y );
@@ -561,6 +708,15 @@ public class KDTree<T>
             this.values.add( value );
         }
 
+        @Override
+        public int visitValues(ValueVisitor<T> visitor) 
+        {
+        	for ( T v : values ) {
+        		visitor.visit( v );
+        	}
+        	return values.size();
+        }
+        
         public boolean supportsMultipleValues() {
             return true;
         }        
@@ -634,6 +790,15 @@ public class KDTree<T>
         return builder.toString();
     }
 
+    /**
+     * Stores a value at a specific (x,y) location.
+     * 
+     * <p>This method is thread-safe</p>.
+     * 
+     * @param x
+     * @param y
+     * @param value
+     */
     public void add(double x,double y,T value) 
     {
         if ( root == null ) {
@@ -642,13 +807,13 @@ public class KDTree<T>
         root.add( x,y , 0 , new SingleValueLeafNode<>( x , y , value) );
     }
 
-    public List<T> findApproxNearestNeighbours(double x,double y,double radius,int maxCount) {
+    public void visitApproxNearestNeighbours(double x,double y,double radius,int maxCount,ValueVisitor<T> visitor) {
 
         NearestNeighborGatherer<T> gatherer = new NearestNeighborGatherer<>( x,y,radius,maxCount );
         if ( root != null ) {
             root.findApproxNearestNeighbors( 0 , gatherer );
+            gatherer.visitResults( visitor );
         }
-        return gatherer.getResults();
     }
 
     public void visitPreOrder(KDLeafVisitor<T> visitor) {
@@ -657,6 +822,8 @@ public class KDTree<T>
         }
     }
 
+    // ============ DEBUGGING code ====================
+    
     private static final double MODEL_WIDTH = 400;
     private static final double MODEL_HEIGHT = 400;
 
@@ -779,13 +946,22 @@ public class KDTree<T>
                 g.setColor(Color.RED);
                 drawCircle(markX,markY,markRadius,g);
 
+                final List<Vec2d> neighbours= new ArrayList<>();                
                 long time1 = -System.currentTimeMillis();
-                final List<Vec2d> neighbours = tree.findApproxNearestNeighbours( markX,markY,markRadius, 5 );
+                tree.visitApproxNearestNeighbours( markX,markY,markRadius, 5 , new ValueVisitor<Vec2d>() {
+
+					@Override
+					public void visit(Vec2d value) {
+						neighbours.add( value );
+					}
+                });
+                
                 time1 += System.currentTimeMillis();
                 System.out.println("Time: "+time1);
                 double maxDistance = 0;
                 Vec2d farest = Vec2d.ORIGIN;
-                for ( Vec2d neighbour : neighbours ) {
+                for ( Vec2d neighbour : neighbours ) 
+                {
                     drawPoint( neighbour , g );
                     double distance = neighbour.minus( markX ,  markY ).length();
                     if ( farest == Vec2d.ORIGIN || distance > maxDistance ) {

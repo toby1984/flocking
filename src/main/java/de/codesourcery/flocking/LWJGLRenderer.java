@@ -1,3 +1,18 @@
+/**
+ * Copyright 2012 Tobias Gierke <tobias.gierke@code-sourcery.de>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package de.codesourcery.flocking;
 
 import java.nio.IntBuffer;
@@ -12,12 +27,18 @@ import org.lwjgl.opengl.GL15;
 
 import de.codesourcery.flocking.World.IBoidVisitor;
 
-public class LWJGLRenderer extends AbstractRenderer {
+/**
+ * Simulation renderer that uses OpenGL/LWJGL for rendering.
+ *
+ * @author tobias.gierke@code-sourcery.de
+ */
+public class LWJGLRenderer implements IRenderer {
 
     private double xInc;
     private double yInc;
 
-    // VBOs
+    // VBOs 
+    // (only re-allocated if simulation size/population count is changed)
     private MyIntBuffer vertexBuffer;
     private MyIntBuffer indexBuffer;
     
@@ -30,9 +51,8 @@ public class LWJGLRenderer extends AbstractRenderer {
     
     private final CountDownLatch destroyLatch = new CountDownLatch(1);
 
-    public LWJGLRenderer(boolean debug,boolean debugPerformance) 
+    public LWJGLRenderer() 
     {
-        super(debug , debugPerformance );
     }
 
     public void setup() throws LWJGLException
@@ -128,7 +148,7 @@ public class LWJGLRenderer extends AbstractRenderer {
 
         GL11.glEnableClientState(GL11.GL_VERTEX_ARRAY);  
         
-        final int triangleCount = world.getPopulation();
+        final int triangleCount = world.getPopulationCount();
 
         // setup vertex data       
         final int vertexArrayLen = triangleCount * 3 * 2 ; // one triangle = 3 vertices * 2 int's per vertex
@@ -306,4 +326,8 @@ public class LWJGLRenderer extends AbstractRenderer {
             Thread.currentThread().interrupt();
         }
     }
+    
+    protected static final int round(double d) {
+        return (int) Math.round(d);
+    }    
 }

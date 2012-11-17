@@ -1,3 +1,18 @@
+/**
+ * Copyright 2012 Tobias Gierke <tobias.gierke@code-sourcery.de>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package de.codesourcery.flocking;
 
 import java.awt.Color;
@@ -13,7 +28,12 @@ import javax.swing.JPanel;
 import de.codesourcery.flocking.Simulation.NeighborAggregator;
 import de.codesourcery.flocking.World.IBoidVisitor;
 
-public final class SoftwareRenderer extends AbstractRenderer {
+/**
+ * Simulation renderer that uses Java2D for rendering.
+ *
+ * @author tobias.gierke@code-sourcery.de
+ */
+public final class SoftwareRenderer implements IRenderer {
 
     private static final Color BOID_COLOR = new Color(0.5f, 0.5f, 1.0f);
 
@@ -24,11 +44,13 @@ public final class SoftwareRenderer extends AbstractRenderer {
     private final Object WORLD_LOCK=new Object();
     
     // @GuardedBy( WORLD_LOCK )
-    private World worldToRender;    
+    private World worldToRender;
+    
+    private final boolean debug;
 
-    public SoftwareRenderer(boolean debug,boolean debugPerformance) 
+    public SoftwareRenderer(boolean debug) 
     {
-        super(debug , debugPerformance );
+    	this.debug = debug;
     }
 
     @Override
@@ -281,4 +303,8 @@ public final class SoftwareRenderer extends AbstractRenderer {
     {
         frame.dispose();
     }
+    
+    protected static final int round(double d) {
+        return (int) Math.round(d);
+    }    
 }

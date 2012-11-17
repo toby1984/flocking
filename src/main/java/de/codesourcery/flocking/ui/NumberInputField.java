@@ -1,3 +1,18 @@
+/**
+ * Copyright 2012 Tobias Gierke <tobias.gierke@code-sourcery.de>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package de.codesourcery.flocking.ui;
 
 import java.awt.Dimension;
@@ -20,33 +35,78 @@ import javax.swing.event.ChangeListener;
 
 import org.apache.commons.lang.StringUtils;
 
-public class InputField<T extends Number> extends JPanel
+/**
+ * Compound Swing input component for numbers.
+ * 
+ * <p>This component is made up of a label, a textfield
+ * and a slider. It allows the user to enter an integer 
+ * and/or floating-point number by either typing the
+ * digits in the textbox or adjusting a slider.
+ * Minimum/Maximum values are enforced.
+ * </p> 
+ *
+ * @author tobias.gierke@code-sourcery.de
+ */
+public class NumberInputField<T extends Number> extends JPanel
 {
-    private static final int SLIDER_RESOLUTION = 400;
+	/**
+	 * Slider resolution.
+	 * 
+	 * The higher the value, the more fine-grained 
+	 * the adjustments are.
+	 */
+    public static final int SLIDER_RESOLUTION = 400;
     
     private final JTextField textField;
     private final JSlider slider;
     
+    // whether the user may enter floating-point values or not
     private final boolean onlyIntValues;
     private final double minValue;
     private final double maxValue;
     
-    private IModel<T> model;
+    private volatile IModel<T> model;
     
+    // flag used to prevent triggering recursive ActionListener
+    // invocations when the textfield adjusts the slider or vice versa
     private boolean selfTriggeredEvent = false;
     
-    public interface IModel<T> {
+    /**
+     * Input model used to exchange user input with 
+     * client code.
+     * 
+     * <p>I shamelessly stole the 'model' idea from
+     * the awesome Apache Wicket framework.</p>
+     *
+     * @author tobias.gierke@code-sourcery.de
+     */
+    public interface IModel<T> 
+    {
         public T getObject();
+        
         public void setObject(T value);
     }
     
-    public InputField(String label , IModel<T> m , double minValue,double maxValue,final boolean onlyIntValues) 
+    /**
+     * Create instance.
+     *  
+     * <p>Creates a resizable panel that holds a label, a textfield and a slider
+     * for entering/adjusting a numeric value.</p>
+     * 
+     * @param label the label to display
+     * @param model the model that is used to read/write the value to be edited. If the model returns <code>null</code> values,
+     * these will be treated as "0" (or "0.0" respectively).
+     * @param minValue valid minimum value (inclusive) the user may enter
+     * @param maxValue vali maximum value (inclusive) the user may enter
+     * @param onlyIntValues whether the user may enter only integers or integers <b>and</b> floating-point numbers. 
+     */
+    public NumberInputField(String label , IModel<T> model , double minValue,double maxValue,final boolean onlyIntValues) 
     {
-        if ( m == null ) {
+        if ( model == null ) {
             throw new IllegalArgumentException("model must not be NULL.");
         }
         
-        this.model = m;
+        this.model = model;
         this.minValue = minValue;
         this.maxValue = maxValue;
         this.onlyIntValues = onlyIntValues;
@@ -80,7 +140,7 @@ public class InputField<T extends Number> extends JPanel
                     } 
                     catch(Exception ex) 
                     {
-                        textField.setText( numberToString( model.getObject() ) );
+                        textField.setText( numberToString( NumberInputField.this.model.getObject() ) );
                         return;
                     }
 
@@ -103,8 +163,8 @@ public class InputField<T extends Number> extends JPanel
                 }
                 final double percentage = slider.getModel().getValue() / (double) SLIDER_RESOLUTION; // 0...1
                 
-                final double range = Math.abs( InputField.this.maxValue - InputField.this.minValue );
-                final double newValue = InputField.this.minValue + range*percentage;
+                final double range = Math.abs( NumberInputField.this.maxValue - NumberInputField.this.minValue );
+                final double newValue = NumberInputField.this.minValue + range*percentage;
                 
                 updateModelValue( newValue );
             }
@@ -149,6 +209,7 @@ public class InputField<T extends Number> extends JPanel
         add( slider ,cnstrs );        
     }
     
+    // testing only
     public static void main(String[] args)
     {
         JFrame frame = new JFrame();
@@ -171,7 +232,7 @@ public class InputField<T extends Number> extends JPanel
             }
         };
         
-        final InputField<Double> c = new InputField<Double>( "Test: " , numberModel , 0 , 100 , false );
+        final NumberInputField<Double> c = new NumberInputField<Double>( "Test: " , numberModel , 0 , 100 , false );
         frame.getContentPane().add( c );
         frame.pack();
         frame.setVisible( true );
@@ -188,6 +249,11 @@ public class InputField<T extends Number> extends JPanel
         modelChanged();
     }
     
+    /**
+     * To be invoked when this input components
+     * underlying {@link IModel} has changed
+     * and thus this component needs repainting.
+     */
     public void modelChanged() {
     
         final Number n = model.getObject();
@@ -271,6 +337,12 @@ public class InputField<T extends Number> extends JPanel
         return n == null ? "0.0" :DF.format( n.doubleValue() );
     }
     
+    /**
+     * Sets a new model for this input component.
+     * 
+     * @param model
+     * @see #modelChanged()
+     */
     public void setModel(IModel<T> model) 
     {
         if (model == null) {

@@ -1,3 +1,18 @@
+/**
+ * Copyright 2012 Tobias Gierke <tobias.gierke@code-sourcery.de>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package de.codesourcery.flocking.ui;
 
 import java.awt.GridBagConstraints;
@@ -6,7 +21,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.awt.event.WindowListener;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 
@@ -19,8 +33,17 @@ import javax.swing.JRadioButton;
 import javax.swing.SwingConstants;
 
 import de.codesourcery.flocking.SimulationParameters;
-import de.codesourcery.flocking.ui.InputField.IModel;
+import de.codesourcery.flocking.ui.NumberInputField.IModel;
 
+/**
+ * Abstract {@link JFrame} subclass that displays
+ * the user-interface to adjust simulation parameters on-the-fly.  
+ *
+ * <p>Subclasses need to implement various callback-methods that
+ * are triggered whenever the user changes simulation parameters.</p>
+ * 
+ * @author tobias.gierke@code-sourcery.de
+ */
 public abstract class ControllerWindow extends JFrame
 {
     // =========== simulation params ==========
@@ -67,47 +90,58 @@ public abstract class ControllerWindow extends JFrame
         cnstrs.weighty =1.0;
         getContentPane().add( panel , cnstrs );
         pack();
-        setVisible( true );
     }
     
+    // test main
     public static void main(String[] args)
     {
-        new ControllerWindow(SimulationParameters.getDefaultParameters()) {
+    	final ControllerWindow window = new ControllerWindow(SimulationParameters.getDefaultParameters()) {
 
             @Override
-            protected void parametersChanged(SimulationParameters newParams)
-            {
-            }
+            protected void parametersChanged(SimulationParameters newParams) { }
 
             @Override
-            protected void rendererChanged(boolean useOpenGL)
-            {
-            }
+            protected void rendererChanged(boolean useOpenGL) { }
 
             @Override
-            protected void vsyncChanged(boolean vsyncEnabled)
-            {
-            }
+            protected void vsyncChanged(boolean vsyncEnabled) { }
 
 			@Override
-			protected void onDispose() {
-				// TODO Auto-generated method stub
-				
-			}
+			protected void onDispose() { }
         };
+        window.setVisible(true);
     }
     
-    private SimulationParameters getSimulationParameters() {
+    private SimulationParameters getSimulationParameters() 
+    {
         return new SimulationParameters(populationSize, modelMax, maxSteeringForce, maxSpeed, cohesionWeight,
                 separationWeight, alignmentWeight, borderForceWeight, separationRadius, neighbourRadius, borderRadius);
     }
 
+    /**
+     * Invoked whenever a simulation parameter has changed.
+     * 
+     * @param newParams
+     */
     protected abstract void parametersChanged(SimulationParameters newParams);
     
+    /**
+     * Invoked when the user selects a different renderer.
+     * 
+     * @param useOpenGL whether the OpenGL renderer should be used.
+     */
     protected abstract void rendererChanged(boolean useOpenGL);
     
+    /**
+     * Invoked whenever the user toggls the vertical-sync setting.
+     * 
+     * @param vsyncEnabled
+     */
     protected abstract void vsyncChanged(boolean vsyncEnabled);
     
+    /**
+     * Invoked when the user closes this window.
+     */
     protected abstract void onDispose();
         
     private void layoutPanel(JPanel panel) 
@@ -166,39 +200,39 @@ public abstract class ControllerWindow extends JFrame
         cnstrs.weightx=0;
         panel.add( buttonPanel , cnstrs );        
         
-        panel.add( new InputField<Integer>("Population:" , new PropertyModel<Integer>( ControllerWindow.this , "populationSize" ) , 10 , 50000 , true) ,
+        panel.add( new NumberInputField<Integer>("Population:" , new PropertyModel<Integer>( ControllerWindow.this , "populationSize" ) , 10 , 50000 , true) ,
                 createConstraints(0,y++) );
         
-        panel.add( new InputField<Double>("Scaling:" , new PropertyModel<Double>( ControllerWindow.this , "modelMax" ) , 100 , 10000 , true) ,
+        panel.add( new NumberInputField<Double>("Scaling:" , new PropertyModel<Double>( ControllerWindow.this , "modelMax" ) , 100 , 10000 , true) ,
                 createConstraints(0,y++) );       
         
-        panel.add( new InputField<Double>("Max. steering force:" , new PropertyModel<Double>( ControllerWindow.this , "maxSteeringForce" ) , 0 , 10 , false) ,
+        panel.add( new NumberInputField<Double>("Max. steering force:" , new PropertyModel<Double>( ControllerWindow.this , "maxSteeringForce" ) , 0 , 10 , false) ,
                 createConstraints(0,y++) );   
         
-        panel.add( new InputField<Double>("Max. speed:" , new PropertyModel<Double>( ControllerWindow.this , "maxSpeed" ) , 1 , 20 , false) ,
+        panel.add( new NumberInputField<Double>("Max. speed:" , new PropertyModel<Double>( ControllerWindow.this , "maxSpeed" ) , 1 , 20 , false) ,
                 createConstraints(0,y++) );
         
         // weights
-        panel.add( new InputField<Double>("Cohesion weight:" , new PropertyModel<Double>( ControllerWindow.this , "cohesionWeight" ) , 0 , 1 , false) ,
+        panel.add( new NumberInputField<Double>("Cohesion weight:" , new PropertyModel<Double>( ControllerWindow.this , "cohesionWeight" ) , 0 , 1 , false) ,
                 createConstraints(0,y++) );  
         
-        panel.add( new InputField<Double>("Separation weight:" , new PropertyModel<Double>( ControllerWindow.this , "separationWeight" ) , 0 , 1 , false) ,
+        panel.add( new NumberInputField<Double>("Separation weight:" , new PropertyModel<Double>( ControllerWindow.this , "separationWeight" ) , 0 , 1 , false) ,
                 createConstraints(0,y++) );  
         
-        panel.add( new InputField<Double>("Alignment weight:" , new PropertyModel<Double>( ControllerWindow.this , "alignmentWeight" ) , 0 , 1 , false) ,
+        panel.add( new NumberInputField<Double>("Alignment weight:" , new PropertyModel<Double>( ControllerWindow.this , "alignmentWeight" ) , 0 , 1 , false) ,
                 createConstraints(0,y++) );  
         
-        panel.add( new InputField<Double>("Border force weight:" , new PropertyModel<Double>( ControllerWindow.this , "borderForceWeight" ) , 0 , 1 , false) ,
+        panel.add( new NumberInputField<Double>("Border force weight:" , new PropertyModel<Double>( ControllerWindow.this , "borderForceWeight" ) , 0 , 1 , false) ,
                 createConstraints(0,y++) );      
         
         // radiuses
-        panel.add( new InputField<Double>("Neighbor radius:" , new PropertyModel<Double>( ControllerWindow.this , "neighbourRadius" ) , 10 , 100 , false) ,
+        panel.add( new NumberInputField<Double>("Neighbor radius:" , new PropertyModel<Double>( ControllerWindow.this , "neighbourRadius" ) , 10 , 100 , false) ,
                 createConstraints(0,y++) );  
         
-        panel.add( new InputField<Double>("Separation radius:" , new PropertyModel<Double>( ControllerWindow.this , "separationRadius" ) , 0 , 100 , false) ,
+        panel.add( new NumberInputField<Double>("Separation radius:" , new PropertyModel<Double>( ControllerWindow.this , "separationRadius" ) , 0 , 100 , false) ,
                 createConstraints(0,y++) );          
         
-        panel.add( new InputField<Double>("Border radius:" , new PropertyModel<Double>( ControllerWindow.this , "borderRadius" ) , 0 , 500 , false) ,
+        panel.add( new NumberInputField<Double>("Border radius:" , new PropertyModel<Double>( ControllerWindow.this , "borderRadius" ) , 0 , 500 , false) ,
                 createConstraints(0,y++) ); 
     }
 
@@ -230,15 +264,31 @@ public abstract class ControllerWindow extends JFrame
         return cnstrs;
     }
     
-    protected final class PropertyModel<T> implements IModel<T> {
+    /**
+     * An {@link IModel} implementation that uses reflection to
+     * access private fields of a class.
+     *
+     * <p>This class was inspired by Apache Wickets <code>PropertyModel</code> class.</p>
+     * <p>Note that this model only works for public/private/protected instance (non-static)
+     * fields.</p>
+     * 
+     * @author tobias.gierke@code-sourcery.de
+     */
+    private final class PropertyModel<T> implements IModel<T> {
 
         private final Object target;
-        private final String property;
-        
-        protected PropertyModel(Object target, String property)
+        private final String fieldName;
+       
+        /**
+         * Create instance.
+         * 
+         * @param target target object whose field should be read/set by this model
+         * @param fieldName Name of the instance field on the target object that should be manipulated
+         */
+        public PropertyModel(Object target, String fieldName)
         {
             this.target = target;
-            this.property = property;
+            this.fieldName = fieldName;
         }
 
         private Field getField() 
@@ -248,7 +298,7 @@ public abstract class ControllerWindow extends JFrame
             {
                 for ( Field f : current.getDeclaredFields() ) 
                 {
-                    if ( f.getName().equals( property ) ) 
+                    if ( f.getName().equals( fieldName ) ) 
                     {
                         if ( ! Modifier.isFinal( f.getModifiers() ) && 
                              ! Modifier.isStatic( f.getModifiers() ) ) 
@@ -260,17 +310,18 @@ public abstract class ControllerWindow extends JFrame
                 }
                 current = current.getSuperclass();
             }
-            
-            throw new RuntimeException("Failed to find suitable field named '"+property+"' in "+target);
+            throw new RuntimeException("Failed to find suitable field named '"+fieldName+"' in "+target);
         }
         
-        @Override
+        @SuppressWarnings("unchecked")
+		@Override
         public T getObject()
         {
             try {
                 return (T) getField().get(target);
-            } catch (IllegalArgumentException | IllegalAccessException e) {
-                throw new RuntimeException("Failed to read field '"+property+"' of "+target,e);                
+            } 
+            catch (IllegalArgumentException | IllegalAccessException e) {
+                throw new RuntimeException("Failed to read field '"+fieldName+"' of "+target,e);                
             }
         }
 
@@ -284,9 +335,16 @@ public abstract class ControllerWindow extends JFrame
                 Object valueToSet = value;
                 if ( value instanceof Number) 
                 {
+                	// convert number to target type 
                     if ( field.getType() == Integer.TYPE || field.getType() == Integer.class ) {
                         valueToSet = ((Number) value).intValue();
                     }
+                    if ( field.getType() == Float.TYPE || field.getType() == Float.class ) {
+                        valueToSet = ((Number) value).floatValue();
+                    }   
+                    if ( field.getType() == Double.TYPE || field.getType() == Double.class ) {
+                        valueToSet = ((Number) value).doubleValue();
+                    }                    
                     if ( field.getType() == Long.TYPE || field.getType() == Long.class ) {
                         valueToSet = ((Number) value).longValue();
                     }                    
@@ -297,7 +355,7 @@ public abstract class ControllerWindow extends JFrame
                 parametersChanged( getSimulationParameters() );
             } 
             catch (IllegalArgumentException | IllegalAccessException e) {
-                throw new RuntimeException("Failed to write field '"+property+"' of "+target,e);  
+                throw new RuntimeException("Failed to write field '"+fieldName+"' of "+target,e);  
             } 
         }
     }    

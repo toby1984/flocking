@@ -37,7 +37,7 @@ public final class Simulation implements ISimulation
     private static final int THREAD_COUNT = Runtime.getRuntime().availableProcessors();
     private static final int WORK_UNITS_PER_THREAD = 32;
 
-    private static final boolean DEBUG_TREE_DEPTH = true;
+    private static final boolean DEBUG_TREE_DEPTH = false;
 
     private long generationCounter=0;
     
